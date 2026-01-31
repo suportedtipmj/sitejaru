@@ -83,6 +83,8 @@ Para uma proteção completa em produção:
 2.  **Mudar URL de Login**: Instale o plugin `WPS Hide Login` e mude o `/wp-admin` para uma URL personalizada.
 3.  **Auditoria**: Instale o `Wordfence` ou `Activity Log` para monitorar quem mexe no site.
 4.  **Permissões**: O Docker já protege os arquivos core, mas evite instalar plugins de procedência duvidosa ("nulled").
+5.  **2FA (Autenticação em Duas Etapas)**: Use um plugin como `Wordfence` ou `Two Factor` para exigir o celular ao logar.
+6.  **Backup Externo**: Embora tenhamos volumes, faça cópias semanais da pasta `db_data` e `minio_data` para outro local físico/nuvem.
 
 ---
 **Documentação consolidada para o ambiente de produção.**
