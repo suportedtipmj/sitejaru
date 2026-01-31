@@ -34,6 +34,8 @@ O script já irá:
 3. Instalar o plugin **Advanced Media Offloader**.
 4. Injetar todas as constantes de performance e S3 no `wp-config.php`.
 
+**Nota Técnica**: O Nginx agora atua como proxy reverso para o MinIO. Isso significa que as imagens são servidas diretamente pela porta 80 (ex: `http://localhost/media-wp/...`), o que evita problemas de segurança e bloqueios de porta em navegadores como o Brave.
+
 ## ⚡ Passo 3: Ativação dos Caches (Performance Máxima)
 Após o script terminar:
 1. Acesse o painel do WordPress.
