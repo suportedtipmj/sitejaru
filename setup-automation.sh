@@ -1,6 +1,11 @@
 #!/bin/bash
 
-echo "🚀 Iniciando configuração automática do WordPress Stack..."
+# ==============================================================================
+# Script de Automação WordPress Stack PRO
+# Versão: 1.1 - Consolidada com correções de WAF, MinIO e Proxy
+# ==============================================================================
+
+echo -e "\033[0;36m🚀 Iniciando Consolidação do WordPress Stack (v1.1)...\033[0m"
 
 # Cores para output
 GREEN='\033[0;32m'
@@ -8,95 +13,174 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# 1. Subir os containers
-echo -e "${YELLOW}📦 Subindo containers...${NC}"
-docker-compose up -d
+# 1. Subir/Reiniciar containers
+echo -e "\n${YELLOW}📦 Garantindo que os containers estão rodando...${NC}"
+docker compose up -d
 
-# Aguardar containers iniciarem
-echo -e "${YELLOW}⏳ Aguardando containers iniciarem (30 segundos)...${NC}"
-sleep 30
+# 2. Corrigir Nginx (WAF desativado e Root/Index configurados)
+echo -e "\n${YELLOW}🛠️  Aplicando configuração otimizada no Nginx...${NC}"
+cat << 'EOF' > ./nginx/conf.d/default.conf
+fastcgi_cache_path /etc/nginx/cache levels=1:2 keys_zone=WORDPRESS:100m inactive=60m;
+fastcgi_cache_key "$scheme$request_method$host$request_uri";
 
-# 2. Verificar saúde dos containers
-echo -e "${YELLOW}🔍 Verificando status dos containers...${NC}"
-docker-compose ps
+# Rate Limiting (Instrução: Desativado conforme solicitado)
+# limit_req_zone $binary_remote_addr zone=login:10m rate=1r/s;
 
-# 3. Configurar MinIO usando mc (MinIO Client)
-echo -e "${YELLOW}🪣 Configurando MinIO...${NC}"
+# Bloqueio de Bad Bots (Instrução: Desativado conforme solicitado)
+# map $http_user_agent $bad_bot {
+#     default 0;
+#     ~*(dirbuster|nikto|wpscan|sqlmap|python-requests|curl|wget) 1;
+# }
 
-# Instalar mc se não existir
-if ! command -v mc &> /dev/null; then
-    echo -e "${YELLOW}Instalando MinIO Client...${NC}"
-    wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
-    chmod +x /usr/local/bin/mc
+server {
+    listen 80;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+
+    # Bloqueio de Bad Bots
+    # if ($bad_bot) {
+    #     return 403;
+    # }
+
+    # Debug do Cache
+    add_header X-Cache-Status $upstream_cache_status;
+
+    # Security Headers (Instrução: Comentados para facilitar testes)
+    # add_header X-Frame-Options "SAMEORIGIN" always;
+    # add_header X-XSS-Protection "1; mode=block" always;
+    # add_header X-Content-Type-Options "nosniff" always;
+    # add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    # add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' * data: blob:; font-src 'self' * data:; connect-src 'self' *; frame-src *;" always;
+
+    # Gzip Compression
+    gzip on;
+    gzip_types text/plain text/css text/xml application/json application/javascript image/svg+xml;
+
+    # Tamanho máximo de upload
+    client_max_body_size 64M;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass wordpress:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        
+        # FastCGI Cache
+        fastcgi_cache WORDPRESS;
+        fastcgi_cache_valid 200 301 302 60m;
+        fastcgi_cache_use_stale error timeout updating invalid_header http_500 http_503;
+        fastcgi_cache_bypass $skip_cache;
+        fastcgi_no_cache $skip_cache;
+
+        # Timeouts para uploads grandes
+        fastcgi_read_timeout 300;
+    }
+
+    # Lógica de Cache (Usuários Logados, etc)
+    set $skip_cache 0;
+    if ($request_method = POST) { set $skip_cache 1; }
+    if ($query_string != "") { set $skip_cache 1; }
+    if ($request_uri ~* "/wp-admin/|/xmlrpc.php|wp-.*.php|/feed/|index.php") { set $skip_cache 1; }
+    if ($http_cookie ~* "comment_author|wordpress_[a-f0-7]+|wp-postpass|wordpress_no_cache|wordpress_logged_in") { set $skip_cache 1; }
+
+    # Proteção de arquivos sensíveis (Instrução: Comentado conforme solicitado)
+    # location ~* /(?:uploads|files)/.*\.php$ { deny all; }
+    # location = /xmlrpc.php { deny all; access_log off; log_not_found off; }
+
+    # Rate Limit para Login (Instrução: Desativado conforme solicitado)
+    location = /wp-login.php {
+        # limit_req zone=login burst=5 nodelay;
+        fastcgi_pass wordpress:9000;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    # Proxy para MinIO (Resolve problemas de porta e Cross-Origin)
+    location ^~ /media-wp/ {
+        proxy_pass http://minio:9000/media-wp/;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        expires max;
+    }
+
+    location = /favicon.ico { log_not_found off; access_log off; }
+    location = /robots.txt { log_not_found off; access_log off; allow all; }
+
+    location ~* \.(css|gif|ico|jpeg|jpg|js|png|svg|webp|woff|woff2|ttf|otf)$ {
+        expires max;
+        log_not_found off;
+        access_log off;
+    }
+}
+EOF
+docker exec nginx_waf nginx -s reload
+
+# 3. Configurar MinIO
+echo -e "\n${YELLOW}🪣 Configurando Bucket MinIO...${NC}"
+docker exec minio_s3 mkdir -p /data/media-wp
+cat << 'EOF' > temp-policy.json
+{
+    "Version": "2012-10-17",
+    "Statement": [{"Effect": "Allow", "Principal": {"AWS": ["*"]}, "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::media-wp/*"]}]
+}
+EOF
+docker cp temp-policy.json minio_s3:/tmp/policy.json
+docker exec minio_s3 sh -c "mc alias set local http://localhost:9000 admin_minio senha_minio_123 && mc anonymous set-json /tmp/policy.json local/media-wp"
+rm temp-policy.json
+
+# 4. Configurar WordPress (Plugins e wp-config.php)
+echo -e "\n${YELLOW}🔌 Configurando WordPress e ADVMO...${NC}"
+
+# Garantir plugin instalado
+if docker exec wp_app command -v wp &> /dev/null; then
+    docker exec wp_app wp plugin install advanced-media-offloader --activate --allow-root
+else
+    docker exec wp_app sh -c "cd /var/www/html/wp-content/plugins && wget -q https://downloads.wordpress.org/plugin/advanced-media-offloader.latest-stable.zip -O advmo.zip && unzip -oq advmo.zip && rm advmo.zip"
 fi
 
-# Configurar alias para o MinIO local
-mc alias set local http://localhost:9000 admin_minio senha_minio_123
+# Script PHP para limpeza e injeção do wp-config.php (Método Infalível)
+cat << 'EOF' > fix_config_final.php
+<?php
+$file = "/var/www/html/wp-config.php";
+if (!file_exists($file)) die("wp-config.php not found\n");
+$lines = file($file);
+$new_lines = [];
+foreach ($lines as $line) { if (strpos($line, "ADVMO") === false) { $new_lines[] = $line; } }
+$content = implode("", $new_lines);
+$config = "
+define( 'ADVMO_MINIO_KEY', 'admin_minio' );
+define( 'ADVMO_MINIO_SECRET', 'senha_minio_123' );
+define( 'ADVMO_MINIO_BUCKET', 'media-wp' );
+define( 'ADVMO_MINIO_REGION', 'us-east-1' );
+define( 'ADVMO_MINIO_ENDPOINT', 'http://minio:9000' );
+define( 'ADVMO_MINIO_DOMAIN', 'https://' . (\$_SERVER['HTTP_HOST'] ?? 'oficial.jaru.ro.gov.br') );
+define( 'ADVMO_MINIO_APPEND_BUCKET_TO_DOMAIN', true );
+define( 'ADVMO_MINIO_PATH_STYLE_ENDPOINT', true );
+";
+$content = str_replace("/* That's all, stop editing!", $config . "/* That's all, stop editing!", $content);
+file_put_contents($file, $content);
+echo "wp-config.php atualizado com sucesso!\n";
+?>
+EOF
+docker cp fix_config_final.php wp_app:/tmp/fix_config.php
+docker exec wp_app php /tmp/fix_config.php
+rm fix_config_final.php
 
-# Criar bucket
-echo -e "${YELLOW}Criando bucket media-wp...${NC}"
-mc mb local/media-wp --ignore-existing
+# 5. Limpar Cache do Redis
+echo -e "\n${YELLOW}🧹 Limpando cache do Redis...${NC}"
+docker exec wp_redis redis-cli flushall
 
-# Definir política pública para o bucket
-echo -e "${YELLOW}Definindo permissões públicas para o bucket...${NC}"
-mc anonymous set download local/media-wp
-
-echo -e "${GREEN}✅ Bucket MinIO configurado com sucesso!${NC}"
-
-# 4. Aguardar MySQL estar pronto
-echo -e "${YELLOW}⏳ Aguardando MySQL estar pronto...${NC}"
-sleep 10
-
-until docker exec wp_mysql mysqladmin ping -h"localhost" --silent; do
-    echo -e "${YELLOW}Aguardando MySQL...${NC}"
-    sleep 2
-done
-
-echo -e "${GREEN}✅ MySQL está pronto!${NC}"
-
-# 5. Corrigir permissões do WordPress
-echo -e "${GREEN}✅ Permissões ajustadas!${NC}"
-
-# 6. Instalar plugin e configurar wp-config.php
-echo -e "${YELLOW}🔌 Configurando plugins e wp-config.php...${NC}"
-docker exec wp_app wp plugin install advanced-media-offloader --activate --allow-root
-
-# Injetar constantes no wp-config.php
-docker exec wp_app sh -c 'sed -i "/\/\* That\x27s all, stop editing/i \
-define( \x27ADVMO_MINIO_KEY\x27, \x27admin_minio\x27 );\n\
-define( \x27ADVMO_MINIO_SECRET\x27, \x27senha_minio_123\x27 );\n\
-define( \x27ADVMO_MINIO_BUCKET\x27, \x27media-wp\x27 );\n\
-define( \x27ADVMO_MINIO_REGION\x27, \x27us-east-1\x27 );\n\
-define( \x27ADVMO_MINIO_ENDPOINT\x27, \x27http://minio:9000\x27 );\n\
-define( \x27ADVMO_MINIO_DOMAIN\x27, \x27http://localhost:9000\x27 );\n\
-define( \x27ADVMO_MINIO_APPEND_BUCKET_TO_DOMAIN\x27, true );\n\
-define( \x27ADVMO_MINIO_PATH_STYLE_ENDPOINT\x27, true );" /var/www/html/wp-config.php'
-
-echo -e "${GREEN}✅ Plugins e constantes configurados!${NC}"
-
-# 7. Exibir informações de acesso
-echo ""
+echo -e "\n${GREEN}========================================${NC}"
+echo -e "${GREEN}✨ AMBIENTE CONSOLIDADO COM SUCESSO!     ${NC}"
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✨ Configuração concluída com sucesso!${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
-echo -e "${YELLOW}📋 Informações de Acesso:${NC}"
-echo ""
-echo -e "🌐 WordPress: ${GREEN}http://localhost${NC}"
-echo -e "   - Usuário DB: wp_user"
-echo -e "   - Senha DB: wp_password"
-echo -e "   - Database: wordpress_db"
-echo ""
-echo -e "🗄️  MinIO Console: ${GREEN}http://localhost:9001${NC}"
-echo -e "   - Usuário: admin_minio"
-echo -e "   - Senha: senha_minio_123"
-echo -e "   - Bucket: media-wp (público)"
-echo ""
-echo -e "⚡ Redis: ${GREEN}redis_cache:6379${NC} (interno)"
-echo ""
-echo -e "${YELLOW}📝 Próximos passos:${NC}"
-echo "1. Acesse http://localhost e complete a instalação do WordPress"
-echo "2. O plugin Advanced Media Offloader já está instalado e configurado!"
-echo "3. Caso precise de cache adicional, ative o plugin Redis Object Cache."
-echo ""
-echo -e "${GREEN}🎉 Tudo pronto para usar!${NC}"
+echo -e "\n${YELLOW}Logs Nginx:${NC}"
+docker exec nginx_waf nginx -t

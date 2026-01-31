@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # --- CAMADA DE SEGURANÇA (Proxy e Web Server) ---
