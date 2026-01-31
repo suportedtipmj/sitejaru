@@ -1,0 +1,45 @@
+# WordPress Data (Volumes)
+# Ignoramos pastas que podem conter dados de volumes persistentes se estivessem no host
+# Mas aqui usamos volumes nomeados, então é mais por segurança.
+
+# Temporary scripts
+*.php
+!index.php
+*.sh
+!setup-automation.sh
+*.ps1
+!setup-automation.ps1
+
+# WP-CLI and other temp files
+*.json
+!composer.json
+!package.json
+
+# Keep debugging scripts out of the repo
+apply-fix.php
+debug-advmo.php
+final-fix.php
+final-s3-config.php
+fix-acowebs.php
+fix-advmo-individual.php
+fix-advmo.php
+fix-config.php
+force-on.php
+minio-bool-fix.php
+minio-endpoint.php
+minio-fix-v2.php
+minio-fix-v3.php
+minio-force.php
+set-provider.php
+setup-advmo-fixed.php
+setup-advmo.php
+
+# Environment files
+.env
+
+# WordPress core (usually better not to push if using official images, 
+# but here it might be part of the workspace)
+# wordpress/
+
+# Logs
+*.log

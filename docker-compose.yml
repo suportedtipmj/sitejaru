@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # --- CAMADA DE SEGURANÇA (Proxy e Web Server) ---
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_waf
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - wp_data:/var/www/html:ro # Para servir arquivos estáticos direto
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - wordpress
+
+  # --- CAMADA DE APLICAÇÃO (O Operário) ---
+  wordpress:
+    image: wordpress:fpm-alpine
+    container_name: wp_app
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: mysql_db
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: wp_password
+      WORDPRESS_DB_NAME: wordpress_db
+      # Configurações para o Plugin S3 (MinIO)
+      S3_UPLOADS_BUCKET: 'media-wp'
+      S3_UPLOADS_KEY: 'admin_minio'
+      S3_UPLOADS_SECRET: 'senha_minio_123'
+      S3_UPLOADS_REGION: 'us-east-1'
+      S3_UPLOADS_ENDPOINT: 'http://minio:9000'
+      # Configurações Redis
+      WP_REDIS_HOST: redis_cache
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - backend
+    depends_on:
+      - mysql_db
+      - redis_cache
+
+  # --- CAMADA DE CACHE (A Turbina) ---
+  redis_cache:
+    image: redis:alpine
+    container_name: wp_redis
+    restart: always
+    networks:
+      - backend
+
+  # --- CAMADA DE STORAGE (O Cofre de Mídia) ---
+  minio:
+    image: minio/minio
+    container_name: minio_s3
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin_minio
+      MINIO_ROOT_PASSWORD: senha_minio_123
+    ports:
+      - "9000:9000"  # API do MinIO (S3)
+      - "9001:9001"  # Console do MinIO
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+
+  # --- CAMADA DE DADOS (O Coração) ---
+  mysql_db:
+    image: mysql:8.0
+    container_name: wp_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress_db
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: wp_password
+      MYSQL_ROOT_PASSWORD: root_password_segura
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - backend
+
+# --- REDES E VOLUMES ---
+networks:
+  frontend: # Aberta para a Internet
+  backend:  # Privada para comunicação entre containers
+
+volumes:
+  wp_data:
+  db_data:
+  minio_data:
