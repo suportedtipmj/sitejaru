@@ -149,12 +149,16 @@ docker exec wp_app chown -R www-data:www-data /var/www/html
 - **Permissões corretas**: www-data ownership
 - **Credenciais**: Altere as senhas padrão em produção!
 
-## ⚡ Performance
+## ⚡ Performance (Supercharged)
 
-- **Redis**: Cache de objetos do WordPress
-- **Nginx**: Cache de arquivos estáticos
-- **MinIO**: Offload de mídia do servidor principal
-- **FPM**: Melhor gerenciamento de processos PHP
+Esta stack foi otimizada para "Excelente Desempenho":
+
+- **Nginx FastCGI Cache**: Armazena páginas prontas para visitantes, reduzindo o tempo de resposta (TTFB) para milissegundos.
+- **Gzip Compression**: Compacta HTML, CSS e JS automaticamente para carregamento ultra-rápido em redes móveis.
+- **PHP OPcache Tuning**: Configurado com 256MB de memória e otimização de scripts via `performance.ini`.
+- **MySQL InnoDB Tuning**: Otimizado para melhor uso de buffer pool e escrita em disco.
+- **Redis Object Cache**: Cache de banco de dados para usuários logados e painel admin.
+- **MinIO S3 Offload**: Mídia servida de forma independente, liberando o WordPress para focar no conteúdo.
 
 ## 🔄 Atualização
 

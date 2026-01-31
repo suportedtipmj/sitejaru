@@ -11,6 +11,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/cache:/etc/nginx/cache
       - wp_data:/var/www/html:ro # Para servir arquivos estáticos direto
     networks:
       - frontend
@@ -38,6 +39,7 @@ services:
       WP_REDIS_HOST: redis_cache
     volumes:
       - wp_data:/var/www/html
+      - ./wordpress/conf.d/performance.ini:/usr/local/etc/php/conf.d/zz-performance.ini
     networks:
       - backend
     depends_on:
@@ -79,6 +81,7 @@ services:
       MYSQL_USER: wp_user
       MYSQL_PASSWORD: wp_password
       MYSQL_ROOT_PASSWORD: root_password_segura
+    command: --innodb-buffer-pool-size=256M --innodb-log-file-size=64M
     volumes:
       - db_data:/var/lib/mysql
     networks:
