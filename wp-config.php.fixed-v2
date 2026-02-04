@@ -1,0 +1,72 @@
+<?php
+/**
+ * The base configuration for WordPress
+ */
+
+if (!function_exists('getenv_docker')) {
+    function getenv_docker($env, $default) {
+        if ($fileEnv = getenv($env . '_FILE')) {
+            return rtrim(file_get_contents($fileEnv), "\r\n");
+        }
+        else if (($val = getenv($env)) !== false) {
+            return $val;
+        }
+        else {
+            return $default;
+        }
+    }
+}
+
+// Proxy HTTPS Detection
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+    $_SERVER['SERVER_PORT'] = 443;
+}
+
+define( 'DB_NAME', getenv_docker('WORDPRESS_DB_NAME', 'jaruoficial') );
+define( 'DB_USER', getenv_docker('WORDPRESS_DB_USER', 'root') );
+define( 'DB_PASSWORD', getenv_docker('WORDPRESS_DB_PASSWORD', 'root_password_segura') );
+define( 'DB_HOST', getenv_docker('WORDPRESS_DB_HOST', 'mysql_db') );
+define( 'DB_CHARSET', getenv_docker('WORDPRESS_DB_CHARSET', 'utf8mb4') );
+define( 'DB_COLLATE', getenv_docker('WORDPRESS_DB_COLLATE', '') );
+
+define( 'AUTH_KEY',         'aadb620c77af706407a2c9ec84d178702d251f49' );
+define( 'SECURE_AUTH_KEY',  '5d3badb58288a4bc2f601114da561ca3b5d1d36e' );
+define( 'LOGGED_IN_KEY',    '0cd475c51fc9ebc85903a98580dae13fa3293b9b' );
+define( 'NONCE_KEY',        'ed1730238e17ccf7ccc077e4b97db43b5820c88d' );
+define( 'AUTH_SALT',        '93b5c62c8805f1a1c02a5d460c519b480df9d877' );
+define( 'SECURE_AUTH_SALT', '90d717f0bc38c397ce80f1c5ab574b8c0781547f' );
+define( 'LOGGED_IN_SALT',   '046ff1d5c4c361cd17efb455b665c167c16f74f3' );
+define( 'NONCE_SALT',       '59911bef39129d1c88259a6ec69d3c8ab1c0c646' );
+
+$table_prefix = getenv_docker('WORDPRESS_TABLE_PREFIX', 'wp_');
+
+define( 'WP_DEBUG', true );
+define( 'WP_DEBUG_LOG', true );
+define( 'WP_DEBUG_DISPLAY', false );
+@ini_set( 'display_errors', 0 );
+
+
+if ($configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '')) {
+    eval($configExtra);
+}
+
+/** Redis Object Cache */
+define('WP_REDIS_HOST', 'redis');
+define('WP_REDIS_PORT', 6379);
+
+/** Advanced Media Offloader Configuration (MinIO) */
+define( 'ADVMO_MINIO_KEY', 'admin_minio' );
+define( 'ADVMO_MINIO_SECRET', 'senha_minio_123' );
+define( 'ADVMO_MINIO_BUCKET', 'media-wp' );
+define( 'ADVMO_MINIO_REGION', 'us-east-1' );
+define( 'ADVMO_MINIO_ENDPOINT', 'http://minio:9000' );
+define( 'ADVMO_MINIO_DOMAIN', 'https://oficial.jaru.ro.gov.br/media-wp' );
+define( 'ADVMO_MINIO_APPEND_BUCKET_TO_DOMAIN', false );
+define( 'ADVMO_MINIO_PATH_STYLE_ENDPOINT', true );
+
+if ( ! defined( 'ABSPATH' ) ) {
+    define( 'ABSPATH', __DIR__ . '/' );
+}
+
+require_once ABSPATH . 'wp-settings.php';

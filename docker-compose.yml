@@ -1,4 +1,3 @@
-
 services:
   # --- CAMADA DE SEGURANÇA (Proxy e Web Server) ---
   nginx:
@@ -25,13 +24,13 @@ services:
     restart: always
     environment:
       WORDPRESS_DB_HOST: mysql_db
-      WORDPRESS_DB_USER: wp_user
-      WORDPRESS_DB_PASSWORD: wp_password
-      WORDPRESS_DB_NAME: wordpress_db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: "@JaruOficial#2026$"
+      WORDPRESS_DB_NAME: jaruoficial
       # Configurações para o Plugin S3 (MinIO)
       S3_UPLOADS_BUCKET: 'media-wp'
       S3_UPLOADS_KEY: 'admin_minio'
-      S3_UPLOADS_SECRET: 'senha_minio_123'
+      S3_UPLOADS_SECRET: '@JaruOficial@2026#'
       S3_UPLOADS_REGION: 'us-east-1'
       S3_UPLOADS_ENDPOINT: 'http://minio:9000'
       # Configurações Redis
@@ -61,7 +60,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin_minio
-      MINIO_ROOT_PASSWORD: senha_minio_123
+      MINIO_ROOT_PASSWORD: "@JaruOficial@2026#"
     ports:
       - "9000:9000"  # API do MinIO (S3)
       - "9001:9001"  # Console do MinIO
@@ -76,15 +75,49 @@ services:
     container_name: wp_mysql
     restart: always
     environment:
-      MYSQL_DATABASE: wordpress_db
+      MYSQL_DATABASE: jaruoficial
       MYSQL_USER: wp_user
-      MYSQL_PASSWORD: wp_password
-      MYSQL_ROOT_PASSWORD: root_password_segura
+      MYSQL_PASSWORD: "@JaruOficial#2026$"
+      MYSQL_ROOT_PASSWORD: "@JaruOficial#2026$"
     command: --innodb-buffer-pool-size=256M --innodb-log-file-size=64M
     volumes:
       - db_data:/var/lib/mysql
     networks:
       - backend
+
+  # --- GERENCIAMENTO (phpMyAdmin) ---
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pma_db
+    restart: always
+    environment:
+      PMA_HOST: mysql_db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "8080:80"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - mysql_db
+
+  # --- GERENCIAMENTO (Portainer) ---
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: always
+    ports:
+      - "9443:9443"  # HTTPS
+      - "8000:8000"  # Edge Agent (opcional)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - frontend
+      - backend
+
 
 # --- REDES E VOLUMES ---
 networks:
@@ -93,5 +126,11 @@ networks:
 
 volumes:
   wp_data:
+    external: true
+    name: sitewordpress_wp_data
   db_data:
+    external: true
+    name: sitewordpress_db_data
   minio_data:
+  portainer_data:
+

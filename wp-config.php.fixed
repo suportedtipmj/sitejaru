@@ -1,0 +1,80 @@
+<?php
+/**
+ * The base configuration for WordPress
+ */
+
+// a helper function to lookup "env_FILE", "env", then fallback
+if (!function_exists('getenv_docker')) {
+    function getenv_docker($env, $default) {
+        if ($fileEnv = getenv($env . '_FILE')) {
+            return rtrim(file_get_contents($fileEnv), "\r\n");
+        }
+        else if (($val = getenv($env)) !== false) {
+            return $val;
+        }
+        else {
+            return $default;
+        }
+    }
+}
+
+// ** Database settings ** //
+define( 'DB_NAME', getenv_docker('WORDPRESS_DB_NAME', 'wordpress') );
+define( 'DB_USER', getenv_docker('WORDPRESS_DB_USER', 'example username') );
+define( 'DB_PASSWORD', getenv_docker('WORDPRESS_DB_PASSWORD', 'example password') );
+define( 'DB_HOST', getenv_docker('WORDPRESS_DB_HOST', 'mysql') );
+define( 'DB_CHARSET', getenv_docker('WORDPRESS_DB_CHARSET', 'utf8mb4') );
+define( 'DB_COLLATE', getenv_docker('WORDPRESS_DB_COLLATE', '') );
+
+/** Authentication unique keys and salts. */
+define( 'AUTH_KEY',         getenv_docker('WORDPRESS_AUTH_KEY',         'aadb620c77af706407a2c9ec84d178702d251f49') );
+define( 'SECURE_AUTH_KEY',  getenv_docker('WORDPRESS_SECURE_AUTH_KEY',  '5d3badb58288a4bc2f601114da561ca3b5d1d36e') );
+define( 'LOGGED_IN_KEY',    getenv_docker('WORDPRESS_LOGGED_IN_KEY',    '0cd475c51fc9ebc85903a98580dae13fa3293b9b') );
+define( 'NONCE_KEY',        getenv_docker('WORDPRESS_NONCE_KEY',        'ed1730238e17ccf7ccc077e4b97db43b5820c88d') );
+define( 'AUTH_SALT',        getenv_docker('WORDPRESS_AUTH_SALT',        '93b5c62c8805f1a1c02a5d460c519b480df9d877') );
+define( 'SECURE_AUTH_SALT', getenv_docker('WORDPRESS_SECURE_AUTH_SALT', '90d717f0bc38c397ce80f1c5ab574b8c0781547f') );
+define( 'LOGGED_IN_SALT',   getenv_docker('WORDPRESS_LOGGED_IN_SALT',   '046ff1d5c4c361cd17efb455b665c167c16f74f3') );
+define( 'NONCE_SALT',       getenv_docker('WORDPRESS_NONCE_SALT',       '59911bef39129d1c88259a6ec69d3c8ab1c0c646') );
+
+$table_prefix = getenv_docker('WORDPRESS_TABLE_PREFIX', 'wp_');
+
+define( 'WP_DEBUG', !!getenv_docker('WORDPRESS_DEBUG', '') );
+
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos($_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false) {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+if ($configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '')) {
+    eval($configExtra);
+}
+
+/** Redis Object Cache */
+define('WP_REDIS_HOST', 'redis_cache');
+define('WP_REDIS_PORT', 6379);
+
+/** MinIO S3 Configuration for WP Offload Media */
+define( 'AS3CF_AWS_USE_EC2_IAM_ROLE', false );
+define( 'AS3CF_SETTINGS', serialize( array(
+    'provider' => 'aws',
+    'access-key-id' => 'admin_minio',
+    'secret-access-key' => 'senha_minio_123',
+    'bucket' => 'media-wp',
+    'region' => 'us-east-1',
+    'endpoint' => 'http://minio:9000',
+    'use-ssl' => false,
+    'force-path-style' => true,
+    'domain' => 'cloudfront',
+    'cloudfront' => 'http://192.168.10.141/media-wp',
+    'enable-object-prefix' => true,
+    'object-prefix' => 'wp-content/uploads/',
+    'copy-to-s3' => true,
+    'serve-from-s3' => true,
+) ) );
+
+/** Absolute path to the WordPress directory. */
+if ( ! defined( 'ABSPATH' ) ) {
+    define( 'ABSPATH', __DIR__ . '/' );
+}
+
+/** Sets up WordPress vars and included files. */
+require_once ABSPATH . 'wp-settings.php';
